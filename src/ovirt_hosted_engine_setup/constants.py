@@ -68,6 +68,12 @@ class FileSystemTypes(object):
     NFS = 'nfs'
     GLUSTERFS = 'glusterfs'
 
+@util.export
+@util.codegen
+class VfsTypes(object):
+    EXT4 = 'ext4'
+    CEPH = 'ceph'
+    NFS = 'nfs'
 
 @util.export
 @util.codegen
@@ -75,6 +81,7 @@ class DomainTypes(object):
     NFS = 'nfs'
     NFS3 = 'nfs3'
     NFS4 = 'nfs4'
+    POSIXFS = 'posixfs'
     GLUSTERFS = 'glusterfs'
     ISCSI = 'iscsi'
     FC = 'fc'
@@ -123,6 +130,7 @@ class VDSMConstants(object):
 class StorageDomainType(object):
     UNKNOWN = 'UNKNOWN'
     NFS = 'NFS'
+    POSIXFS = 'POSIXFS'
     FCP = 'FCP'
     ISCSI = 'ISCSI'
     LOCALFS = 'LOCALFS'
@@ -670,6 +678,14 @@ class StorageEnv(object):
     )
     def DOMAIN_TYPE(self):
         return 'OVEHOSTED_STORAGE/domainType'
+
+    @ohostedattrs(
+        answerfile=True,
+        summary=True,
+        description=_('VFS Type'),
+    )
+    def VFS_TYPE(self):
+        return 'OVEHOSTED_STORAGE/vfsType'
 
     @ohostedattrs(
         answerfile=True,

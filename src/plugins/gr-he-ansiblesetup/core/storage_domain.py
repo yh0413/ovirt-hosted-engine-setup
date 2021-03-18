@@ -63,6 +63,23 @@ class Plugin(plugin.PluginBase):
             default=ohostedcons.NfsVersions.AUTO,
         )
 
+    def _query_vfs_type(self):
+        return self.dialog.queryString(
+            name='OVEHOSTED_STORAGE_NFS_VERSION',
+            note=_(
+                'Please specify the vfs type '
+                'you would like to use (@VALUES@)[@DEFAULT@]: '
+            ),
+            prompt=True,
+            caseSensitive=True,
+            validValues=(
+                ohostedcons.VfsTypes.EXT4,
+                ohostedcons.VfsTypes.CEPH,
+                ohostedcons.VfsTypes.NFS,
+            ),
+            default=ohostedcons.VfsTypes.CEPH,
+        )
+
     def _query_connection_path(self):
         return self.dialog.queryString(
             name='OVEHOSTED_STORAGE_DOMAIN_CONNECTION',
@@ -451,6 +468,10 @@ class Plugin(plugin.PluginBase):
             None
         )
         self.environment.setdefault(
+            ohostedcons.StorageEnv.VFS_TYPE,
+            None
+        )
+        self.environment.setdefault(
             ohostedcons.StorageEnv.DOMAIN_TYPE,
             None
         )
@@ -557,6 +578,9 @@ class Plugin(plugin.PluginBase):
             nfs_version = self.environment[
                 ohostedcons.StorageEnv.NFS_VERSION
             ]
+            vfs_type = self.environment[
+                ohostedcons.StorageEnv.VFS_TYPE
+            ]
             iscsi_portal = self.environment[
                 ohostedcons.StorageEnv.ISCSI_IP_ADDR
             ]
@@ -599,6 +623,7 @@ class Plugin(plugin.PluginBase):
                         ohostedcons.DomainTypes.ISCSI,
                         ohostedcons.DomainTypes.FC,
                         ohostedcons.DomainTypes.NFS,
+                        ohostedcons.DomainTypes.POSIXFS,
                     ),
                     default=ohostedcons.DomainTypes.NFS,
                 )
@@ -617,6 +642,9 @@ class Plugin(plugin.PluginBase):
             if domain_type == ohostedcons.DomainTypes.NFS:
                 if nfs_version is None:
                     nfs_version = self._query_nfs_version()
+            elif domain_type == ohostedcons.DomainTypes.POSIXFS:
+                if vfs_type is None:
+                    vfs_type = self._query_vfs_type()
 
             if (
                 domain_type == ohostedcons.DomainTypes.NFS or
@@ -655,6 +683,13 @@ class Plugin(plugin.PluginBase):
 
                 if mnt_options is None:
                     mnt_options = self._query_mnt_options(mnt_options)
+
+            elif domain_type == ohostedcons.DomainTypes.POSIXFS:
+                if storage_domain_connection is None:
+                    storage_domain_connection = self._query_connection_path()
+                if mnt_options is None:
+                    mnt_options = self._query_mnt_options(mnt_options)
+                storage_domain_path = storage_domain_connection
 
             elif domain_type == ohostedcons.DomainTypes.ISCSI:
                 if iscsi_portal is None:
@@ -758,6 +793,7 @@ class Plugin(plugin.PluginBase):
                 'he_storage_domain_path': storage_domain_path,
                 'he_mount_options': mnt_options,
                 'he_nfs_version': nfs_version,
+                'he_vfs_type': vfs_type,
                 'he_domain_type': domain_type,
                 'he_iscsi_portal_port': iscsi_port,
                 'he_iscsi_target': iscsi_target,
@@ -824,6 +860,18 @@ class Plugin(plugin.PluginBase):
                         self.environment[
                             ohostedcons.StorageEnv.NFS_VERSION
                         ] = storage['nfs_version']
+                    if self.environment[
+                        ohostedcons.StorageEnv.DOMAIN_TYPE
+                    ] == ohostedcons.DomainTypes.POSIXFS:
+                        self.environment[
+                            ohostedcons.StorageEnv.STORAGE_DOMAIN_CONNECTION
+                        ] = storage_domain_path
+                        self.environment[
+                            ohostedcons.StorageEnv.MNT_OPTIONS
+                        ] = mnt_options
+                        self.environment[
+                            ohostedcons.StorageEnv.VFS_TYPE
+                        ] = storage['vfs_type']
                     if self.environment[
                         ohostedcons.StorageEnv.DOMAIN_TYPE
                     ] == ohostedcons.DomainTypes.GLUSTERFS:

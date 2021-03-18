@@ -87,6 +87,11 @@ class Plugin(plugin.PluginBase):
                 raise RuntimeError(msg)
             storage_domain_address = storage_domain_det[0]
             storage_domain_path = storage_domain_det[1]
+        elif domain_type == ohostedcons.DomainTypes.POSIXFS:
+            storage_domain_address = None
+            storage_domain_path = self.environment[
+                ohostedcons.StorageEnv.STORAGE_DOMAIN_CONNECTION
+            ]
         else:
             storage_domain_address = self.environment[
                 ohostedcons.StorageEnv.STORAGE_DOMAIN_CONNECTION
@@ -169,6 +174,9 @@ class Plugin(plugin.PluginBase):
             ],
             'he_nfs_version': self.environment[
                 ohostedcons.StorageEnv.NFS_VERSION
+            ],
+            'he_vfs_type': self.environment[
+                ohostedcons.StorageEnv.VFS_TYPE
             ],
             'he_vm_ip_addr': ip_addr,
             'he_vm_ip_prefix': prefix,

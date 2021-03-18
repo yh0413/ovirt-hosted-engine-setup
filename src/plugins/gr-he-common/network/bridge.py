@@ -199,24 +199,25 @@ class Plugin(plugin.PluginBase):
         stage=plugin.Stages.STAGE_VALIDATION,
     )
     def _validate_hostname_first_host(self):
-        self._hostname_helper.getHostname(
-            envkey=ohostedcons.NetworkEnv.HOST_NAME,
-            whichhost='first HE',
-            prompttext=(
-                'Please provide the hostname of this host '
-                'on the management network'
-            ),
-            supply_default=True,
-            validate_syntax=True,
-            system=True,
-            dns=True,
-            local_non_loopback=True,
-            reverse_dns=self.environment[
-                ohostedcons.NetworkEnv.FQDN_REVERSE_VALIDATION
-            ],
-            not_local=False,
-            allow_empty=False,
-        )
+        if self.environment[ohostedcons.NetworkEnv.HOST_NAME] is None:
+            self._hostname_helper.getHostname(
+                envkey=ohostedcons.NetworkEnv.HOST_NAME,
+                whichhost='first HE',
+                prompttext=(
+                    'Please provide the hostname of this host '
+                    'on the management network'
+                ),
+                supply_default=True,
+                validate_syntax=True,
+                system=True,
+                dns=True,
+                local_non_loopback=True,
+                reverse_dns=self.environment[
+                    ohostedcons.NetworkEnv.FQDN_REVERSE_VALIDATION
+                ],
+                not_local=False,
+                allow_empty=False,
+            )
         if not self.environment[
             ohostedcons.EngineEnv.APP_HOST_NAME
         ]:
