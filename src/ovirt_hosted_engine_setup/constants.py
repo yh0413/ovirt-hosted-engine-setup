@@ -965,6 +965,18 @@ class CloudInit(object):
     @ohostedattrs(
         answerfile=True,
     )
+    def PROLINUX_REPO_ADDRESS(self):
+        return 'OVEHOSTED_VM/proLinuxRepoAddress'
+
+    @ohostedattrs(
+        answerfile=True,
+    )
+    def OVIRT_REPO_ADDRESS(self):
+        return 'OVEHOSTED_VM/ovirtRepoAddress'
+
+    @ohostedattrs(
+        answerfile=True,
+    )
     def APPLY_OPENSCAP_PROFILE(self):
         return 'OVEHOSTED_VM/applyOpenScapProfile'
 

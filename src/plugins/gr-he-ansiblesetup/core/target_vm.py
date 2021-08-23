@@ -209,6 +209,12 @@ class Plugin(plugin.PluginBase):
             'he_root_ssh_pubkey': self.environment[
                 ohostedcons.CloudInit.ROOT_SSH_PUBKEY
             ],
+            'he_prolinux_repo_address': self.environment[
+                ohostedcons.CloudInit.PROLINUX_REPO_ADDRESS
+            ],
+            'he_ovirt_repo_address': self.environment[
+                ohostedcons.CloudInit.OVIRT_REPO_ADDRESS
+            ],
             'he_restore_from_file': self.environment[
                 ohostedcons.CoreEnv.RESTORE_FROM_FILE
             ],

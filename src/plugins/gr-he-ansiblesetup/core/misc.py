@@ -326,6 +326,12 @@ class Plugin(plugin.PluginBase):
             'he_root_ssh_access': self.environment[
                 ohostedcons.CloudInit.ROOT_SSH_ACCESS
             ].lower(),
+            'he_prolinux_repo_address': self.environment[
+                ohostedcons.CloudInit.PROLINUX_REPO_ADDRESS
+            ],
+            'he_ovirt_repo_address': self.environment[
+                ohostedcons.CloudInit.OVIRT_REPO_ADDRESS
+            ],
             'he_apply_openscap_profile': self.environment[
                 ohostedcons.CloudInit.APPLY_OPENSCAP_PROFILE
             ],

@@ -379,6 +379,45 @@ class Plugin(plugin.PluginBase):
             ] = dns_clean
             valid = True
 
+    def _customize_vm_repository(self):
+        interactive_prolinux_repo = (
+            self.environment[
+                ohostedcons.CloudInit.PROLINUX_REPO_ADDRESS
+            ] is None
+        )
+        if interactive_prolinux_repo:
+            prolinux_repo_address = self.dialog.queryString(
+                name='PROLINUX_REPOSITORY_ADDRESS',
+                note=_(
+                    'Please enter the ProLinux repository domain name or IP address '
+                    'to be used for the engine VM (leave it empty to skip) [@DEFAULT@]: '
+                ),
+                prompt=True,
+                default='http://prolinux-repo.tmaxos.com/prolinux/8/os/x86_64',
+            )
+            self.environment[
+                ohostedcons.CloudInit.PROLINUX_REPO_ADDRESS
+            ] = prolinux_repo_address
+
+        interactive_ovirt_repo = (
+            self.environment[
+                ohostedcons.CloudInit.OVIRT_REPO_ADDRESS
+            ] is None
+        )
+        if interactive_prolinux_repo:
+            ovirt_repo_address = self.dialog.queryString(
+                name='OVIRT_REPOSITORY_ADDRESS',
+                note=_(
+                    'Please enter the oVirt repository domain name or IP address '
+                    'to be used for the engine VM (leave it empty to skip) [@DEFAULT@]: '
+                ),
+                prompt=True,
+                default='http://prolinux-repo.tmaxos.com/ovirt/4.4/el8/x86_64',
+            )
+            self.environment[
+                ohostedcons.CloudInit.OVIRT_REPO_ADDRESS
+            ] = ovirt_repo_address
+
     def _get_host_tz(self):
         self.logger.info(_('Detecting host timezone.'))
         tz = ''
@@ -440,6 +479,14 @@ class Plugin(plugin.PluginBase):
         )
         self.environment.setdefault(
             ohostedcons.CloudInit.ROOT_SSH_ACCESS,
+            None
+        )
+        self.environment.setdefault(
+            ohostedcons.CloudInit.PROLINUX_REPO_ADDRESS,
+            None
+        )
+        self.environment.setdefault(
+            ohostedcons.CloudInit.OVIRT_REPO_ADDRESS,
             None
         )
         self.environment.setdefault(
@@ -854,6 +901,7 @@ class Plugin(plugin.PluginBase):
     def _customize_vm_networking(self):
         self._customize_vm_addressing()
         self._customize_vm_dns()
+        self._customize_vm_repository()
 
         if self.environment[
             ohostedcons.CloudInit.VM_ETC_HOSTS
