@@ -22,7 +22,7 @@ define([VERSION_MAJOR], [2])
 define([VERSION_MINOR], [4])
 define([VERSION_FIX], [6])
 define([VERSION_NUMBER], VERSION_MAJOR[.]VERSION_MINOR[.]VERSION_FIX)
-define([VERSION_RELEASE], [1])
+define([VERSION_RELEASE], [supervm.21.0.0])
 define([VERSION_SUFFIX], [])
 
 AC_INIT(
