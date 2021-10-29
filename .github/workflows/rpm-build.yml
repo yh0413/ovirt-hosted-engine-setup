@@ -1,0 +1,43 @@
+name: rpm-build
+
+on:
+  pull_request:
+    branches: [ supervm-main ]
+  
+jobs:
+  build:
+    runs-on: self-hosted
+    steps:
+      - name: Init environment variables
+        id: vars
+        run: |
+          PR_NUMBER=$(echo $GITHUB_REF | awk 'BEGIN { FS = "/" } ; { print $3 }')
+          WORK_DIR=/home/github/ovirt-hosted-engine-setup
+          TEMPLATE_FILE=${WORK_DIR}/templates/ovirt-hosted-engine-setup-job.yaml.j2
+          JOB_FILE=${WORK_DIR}/tmp/ovirt-hosted-engine-setup-job-${PR_NUMBER}.yaml
+          echo ::set-output name=PR_NUMBER::${PR_NUMBER}
+          echo ::set-output name=WORK_DIR::${WORK_DIR}
+          echo ::set-output name=TEMPLATE_FILE::${TEMPLATE_FILE}
+          echo ::set-output name=JOB_FILE::${JOB_FILE}
+      # self hosted-runner is on k8s pod, so we need to enable docker to use jinja2 github actions in future.
+      # or just install python jinja2 module in the self hosted-runner pod
+      - name: Setup job yaml 
+        run: |
+          sed -e "s#{{ PR_NUMBER }}#${{ steps.vars.outputs.PR_NUMBER }}#g" ${{ steps.vars.outputs.TEMPLATE_FILE }} > ${{ steps.vars.outputs.JOB_FILE }}
+      - name: Run ovirt-hosted-engine-setup build job
+        run: kubectl create -f ${{ steps.vars.outputs.JOB_FILE }}
+      - name: Wait the job to be finished
+        run: >-
+          while [ ! -z $(kubectl get -f ${{ steps.vars.outputs.JOB_FILE }} -o jsonpath='{.status.active}') ]; do 
+            sleep 1; 
+          done
+      - name: Check the job status
+        run: >-
+          if [ -z $(kubectl get -f ${{ steps.vars.outputs.JOB_FILE }} -o jsonpath='{.status.succeeded}') ]; then 
+            kubectl delete -f ${{ steps.vars.outputs.JOB_FILE }};
+            rm ${{ steps.vars.outputs.JOB_FILE }};
+            exit 1; 
+          else 
+            kubectl delete -f ${{ steps.vars.outputs.JOB_FILE }};
+            rm ${{ steps.vars.outputs.JOB_FILE }};
+          fi
