@@ -46,6 +46,7 @@ _FILTERED_VARS = (
     'ISCSI_DISCOVER_PASSWORD',
     'ROOTPWD',
     'he_appliance_password',
+    'he_hashed_appliance_password',
     'he_admin_password',
     'he_iscsi_password',
     'he_iscsi_discover_password',
@@ -218,6 +219,7 @@ class AnsibleHelper(base.Base):
                         self._process_output(buffer)
                         buffer = ''
             rc = proc.poll()
+            self._cb_results['ansible-playbook_rc'] = rc
             self.logger.debug('ansible-playbook rc: {rc}'.format(rc=rc))
             while True:
                 output = out_fh.readline()
