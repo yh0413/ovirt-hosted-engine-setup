@@ -1,0 +1,27 @@
+name: release-version
+
+on: create
+jobs:
+  sets-release-ver:
+    if: contains(github.ref, 'supervm-releases/')
+    runs-on: self-hosted
+    steps:
+      - name: Init environment variables
+        id: vars
+        run: |
+          RELEASE=$(echo $GITHUB_REF | awk 'BEGIN { FS = "/" } ; { print $4 }')
+          WORK_DIR=/home/github/ovirt-hosted-engine-setup
+          TARGET_DIR=${WORK_DIR}/release-${RELEASE}
+          echo ::set-output name=RELEASE::${RELEASE}
+          echo ::set-output name=WORK_DIR::${WORK_DIR}
+          echo ::set-output name=TARGET_DIR::${TARGET_DIR}
+      - name: Push modified release version
+        run: |
+          GITHUB_ID=tmax-cloud
+          git clone http://github.com/${GITHUB_ID}/ovirt-hosted-engine-setup.git ${{ steps.vars.outputs.TARGET_DIR }}
+          cd ${{ steps.vars.outputs.TARGET_DIR }} && git checkout supervm-releases/${{ steps.vars.outputs.RELEASE }}
+          sed -i 's#define(\[VERSION_RELEASE\],.*)#define(\[VERSION_RELEASE\], \[supervm.'${{ steps.vars.outputs.RELEASE }}'\])#g' configure.ac
+          git config user.name "CK2-1" && git config user.email "tmaxcloud.ck2.1@gmail.com"
+          git add -A && git commit -m "supervm-release ${{ steps.vars.outputs.RELEASE }}"
+          git push https://${GITHUB_ID}:${{ secrets.TOKEN }}@github.com/${GITHUB_ID}/ovirt-hosted-engine-setup.git --all
+          rm -rf ${{ steps.vars.outputs.TARGET_DIR }}

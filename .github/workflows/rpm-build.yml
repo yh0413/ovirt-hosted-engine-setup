@@ -2,7 +2,7 @@ name: rpm-build
 
 on:
   pull_request:
-    branches: [ supervm-main ]
+    branches: [supervm-main, supervm-releases/**]
   
 jobs:
   build:
@@ -12,9 +12,11 @@ jobs:
         id: vars
         run: |
           PR_NUMBER=$(echo $GITHUB_REF | awk 'BEGIN { FS = "/" } ; { print $3 }')
+          JOB_NAME=${PR_NUMBER}
           WORK_DIR=/home/github/ovirt-hosted-engine-setup
           TEMPLATE_FILE=${WORK_DIR}/templates/ovirt-hosted-engine-setup-job.yaml.j2
           JOB_FILE=${WORK_DIR}/tmp/ovirt-hosted-engine-setup-job-${PR_NUMBER}.yaml
+          echo ::set-output name=JOB_NAME::${JOB_NAME}
           echo ::set-output name=PR_NUMBER::${PR_NUMBER}
           echo ::set-output name=WORK_DIR::${WORK_DIR}
           echo ::set-output name=TEMPLATE_FILE::${TEMPLATE_FILE}
@@ -23,7 +25,17 @@ jobs:
       # or just install python jinja2 module in the self hosted-runner pod
       - name: Setup job yaml 
         run: |
-          sed -e "s#{{ PR_NUMBER }}#${{ steps.vars.outputs.PR_NUMBER }}#g" ${{ steps.vars.outputs.TEMPLATE_FILE }} > ${{ steps.vars.outputs.JOB_FILE }}
+          sed -e "s#{{ JOB_NAME }}#${{ steps.vars.outputs.JOB_NAME }}#g" ${{ steps.vars.outputs.TEMPLATE_FILE }} > ${{ steps.vars.outputs.JOB_FILE }}
+          sed -i "s#{{ PR_NUMBER }}#${{ steps.vars.outputs.PR_NUMBER }}#g" ${{ steps.vars.outputs.JOB_FILE }}
+          sed -i "s#{{ GITHUB_REF }}##g" ${{ steps.vars.outputs.JOB_FILE }}
+          BRANCH=$(echo $GITHUB_BASE_REF | awk 'BEGIN { FS = "/" } ; { print $1 }')
+          if [ ${BRANCH} == 'supervm-main' ]; then
+            sed -i "s#{{ OVIRT_REPO }}#http://172.21.7.2/supervm/main/prolinux/8/arch/x86_64/#g" ${{ steps.vars.outputs.JOB_FILE }}
+          else
+            RELEASE=$(echo $GITHUB_BASE_REF | awk 'BEGIN { FS = "/" } ; { print $2 }')
+            sed -i "s#{{ OVIRT_REPO }}#http://172.21.7.2/supervm/"${RELEASE}"-rc/prolinux/8/arch/x86_64/#g" ${{ steps.vars.outputs.JOB_FILE }}
+          fi
+          sed -i "s#{{ TARGET_DIR }}##g" ${{ steps.vars.outputs.JOB_FILE }}
       - name: Run ovirt-hosted-engine-setup build job
         run: kubectl create -f ${{ steps.vars.outputs.JOB_FILE }}
       - name: Wait the job to be finished
