@@ -1,0 +1,86 @@
+name: repository-deployment
+
+on: 
+  push: 
+    branches: [supervm-main, supervm-releases/**]
+jobs:
+  build:
+    runs-on: self-hosted
+    steps:
+      - name: Init environment variables
+        id: vars
+        run: |
+          WORK_DIR=/home/github/ovirt-hosted-engine-setup
+          TARGET_DIR=${WORK_DIR}/deployment-`date +%s`
+          git clone http://github.com/tmax-cloud/ovirt-hosted-engine-setup.git ${TARGET_DIR} && cd ${TARGET_DIR}
+          BRANCH=$(echo $GITHUB_REF | awk 'BEGIN { FS = "/" } ; { print $3 }')
+          if [ ${BRANCH} == 'supervm-releases' ]; then
+            RELEASE=$(echo $GITHUB_REF | awk 'BEGIN { FS = "/" } ; { print $4 }')
+            git checkout ${BRANCH}/${RELEASE}
+            echo ::set-output name=RELEASE::${RELEASE}
+          fi
+          IS_MERGE=false
+          if [ `git rev-list --max-count=1 HEAD` == `git rev-list --merges --max-count=1 HEAD` ]; then
+            IS_MERGE=true
+          else
+            COMMIT=`git log --format="%H" -n 1`
+            TEMPLATE_FILE=${WORK_DIR}/templates/ovirt-hosted-engine-setup-job.yaml.j2
+            JOB_FILE=${WORK_DIR}/tmp/ovirt-hosted-engine-setup-job-${COMMIT}.yaml
+            echo ::set-output name=COMMIT::${COMMIT}
+            echo ::set-output name=TEMPLATE_FILE::${TEMPLATE_FILE}
+            echo ::set-output name=JOB_FILE::${JOB_FILE}
+          fi
+          echo "IS_MERGE: ${IS_MERGE}"
+          cd ${WORK_DIR} && rm -rf ${TARGET_DIR}
+          echo ::set-output name=WORK_DIR::${WORK_DIR}
+          echo ::set-output name=TARGET_DIR::${TARGET_DIR}
+          echo ::set-output name=IS_MERGE::${IS_MERGE}
+          echo ::set-output name=BRANCH::${BRANCH}
+      - name: Setup k8s job for rpm build if latest commit is not merge
+        if: steps.vars.outputs.IS_MERGE == 'false'
+        run: |
+          sed -e "s#{{ JOB_NAME }}#"${{ steps.vars.outputs.COMMIT }}"#g" ${{ steps.vars.outputs.TEMPLATE_FILE }} > ${{ steps.vars.outputs.JOB_FILE }}
+          sed -i "s#{{ PR_NUMBER }}##g" ${{ steps.vars.outputs.JOB_FILE }}
+          sed -i "s#{{ GITHUB_REF }}#"${GITHUB_REF}"#g" ${{ steps.vars.outputs.JOB_FILE }}
+          if [ ${{ steps.vars.outputs.BRANCH }} == 'supervm-releases' ]; then
+            sed -i "s#{{ OVIRT_REPO }}#http://172.21.7.2/supervm/"${{ steps.vars.outputs.RELEASE }}"-rc/prolinux/8/arch/x86_64/#g" ${{ steps.vars.outputs.JOB_FILE }}
+          else
+            sed -i "s#{{ OVIRT_REPO }}#http://172.21.7.2/supervm/main/prolinux/8/arch/x86_64/#g" ${{ steps.vars.outputs.JOB_FILE }}
+          fi
+          sed -i "s#{{ TARGET_DIR }}#commits/"${{ steps.vars.outputs.COMMIT }}"#g" ${{ steps.vars.outputs.JOB_FILE }}
+      - name: Run k8s job for rpm build if latest commit is not merge
+        if: steps.vars.outputs.IS_MERGE == 'false'
+        run: kubectl create -f ${{ steps.vars.outputs.JOB_FILE }}
+      - name: Wait k8s job for rpm build if latest commit is not merge
+        if: steps.vars.outputs.IS_MERGE == 'false'
+        run: >-
+          while [ ! -z $(kubectl get -f ${{ steps.vars.outputs.JOB_FILE }} -o jsonpath={.status.active}) ]; do
+            sleep 1;
+          done
+      - name: Check k8s job result for rpm build if latest commit is not merge
+        if: steps.vars.outputs.IS_MERGE == 'false'
+        run: >-
+          if [ -z $(kubectl get -f ${{ steps.vars.outputs.JOB_FILE }} -o jsonpath={.status.succeeded}) ]; then
+            kubectl delete -f ${{ steps.vars.outputs.JOB_FILE }};
+            rm ${{ steps.vars.outputs.JOB_FILE }};
+            exit 1;
+          else
+            kubectl delete -f ${{ steps.vars.outputs.JOB_FILE }};
+            rm ${{ steps.vars.outputs.JOB_FILE }};
+          fi
+      - name: Copy rpms to repository
+        run: |
+          REPO_CONTAINER="`kubectl get pods -n prolinux-repo | grep ovirt-repo | awk '{print $1}'` -c createrepo"
+          RUN_CMD="kubectl exec -it -n prolinux-repo ${REPO_CONTAINER} --"
+          DOWNLOAD_DST=/var/www/html/supervm/main/prolinux/8/arch/x86_64
+          if [ ${{ steps.vars.outputs.BRANCH }} == 'supervm-releases' ]; then
+            DOWNLOAD_DST=/var/www/html/supervm/${{ steps.vars.outputs.RELEASE }}-rc/prolinux/8/arch/x86_64/
+          fi
+          DOWNLOAD_SRC=http://172.21.7.2/github/ovirt-hosted-engine-setup/commits/${{ steps.vars.outputs.COMMIT }}/
+          if [ ${{ steps.vars.outputs.IS_MERGE }} ]; then
+            PR_NUMBER=`git log --merges -n 1 | grep "Merge pull request" | sed -n "s/^.*Merge pull request #\\s*\\([0-9]*\\).*$/\\1/p"`
+            DOWNLOAD_SRC=http://172.21.7.2/github/ovirt-hosted-engine-setup/pull-requests/${PR_NUMBER}/
+          fi
+          ${RUN_CMD} mkdir -p ${DOWNLOAD_DST}/Packages
+          ${RUN_CMD} wget -r -np -nd -A .rpm ${DOWNLOAD_SRC} -P ${DOWNLOAD_DST}/Packages
+          ${RUN_CMD} createrepo ${DOWNLOAD_DST}
