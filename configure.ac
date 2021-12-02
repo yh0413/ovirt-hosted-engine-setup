@@ -1,6 +1,6 @@
 dnl
 dnl ovirt-hosted-engine-setup -- ovirt with a manager in a VM
-dnl Copyright (C) 2013-2018 Red Hat, Inc.
+dnl Copyright (C) 2013-2021 Red Hat, Inc.
 dnl
 dnl This library is free software; you can redistribute it and/or
 dnl modify it under the terms of the GNU Lesser General Public
@@ -19,8 +19,8 @@ dnl
 AC_PREREQ(2.60)
 
 define([VERSION_MAJOR], [2])
-define([VERSION_MINOR], [4])
-define([VERSION_FIX], [6])
+define([VERSION_MINOR], [5])
+define([VERSION_FIX], [4])
 define([VERSION_NUMBER], VERSION_MAJOR[.]VERSION_MINOR[.]VERSION_FIX)
 define([VERSION_RELEASE], [1])
 define([VERSION_SUFFIX], [])
@@ -30,8 +30,7 @@ AC_INIT(
     [VERSION_NUMBER],
     [devel@ovirt.org],
     [],
-    [http://www.ovirt.org]
-)
+    [http://www.ovirt.org])
 PACKAGE_RPM_VERSION="VERSION_NUMBER"
 PACKAGE_RPM_RELEASE="VERSION_RELEASE"
 AC_SUBST([PACKAGE_RPM_VERSION])
@@ -42,15 +41,8 @@ AC_CONFIG_SRCDIR([src/ovirt_hosted_engine_setup/__init__.py])
 AC_CONFIG_MACRO_DIR([m4])
 AM_INIT_AUTOMAKE([1.9 tar-pax])
 
-dnl Fallback definition for gettext.m4 older than 0.19.6.
-m4_ifndef([AM_GNU_GETTEXT_REQUIRE_VERSION], [m4_define([AM_GNU_GETTEXT_REQUIRE_VERSION])], [])
-dnl Prefer the latest infrastructure, given it is newer than 0.18.2.
-AM_GNU_GETTEXT_REQUIRE_VERSION([0.18.2])
-
-dnl This will be ignored if the installed autopoint supports
-dnl AM_GNU_GETTEXT_REQUIRE_VERSION.
-AM_GNU_GETTEXT_VERSION([0.18.2])
-AM_PO_SUBDIRS
+AM_GNU_GETTEXT([external])
+AM_GNU_GETTEXT_REQUIRE_VERSION([0.19.6])
 
 AC_ARG_ENABLE(
 	[python-syntax-check],
