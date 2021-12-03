@@ -35,9 +35,14 @@ get_HE_procs() {
 }
 
 remove_ip_rules(){
-    for rule in $(ip rule | grep 10*  | cut -d':' -f1)
+    for rule in $(ip rule | grep ^10[0-1]: | cut -d':' -f1)
     do
         ip rule del prio $rule
+    done
+
+    for rule in $(ip -6 rule | grep ^10[0-1]: | cut -d':' -f1)
+    do
+        ip -6 rule del prio $rule
     done
 }
 
@@ -95,6 +100,7 @@ echo "  -=== De-configure VDSM networks ===- "
 if ip -o a | cut -d' ' -f2 | grep ovirtmgmt; then
     caution "A previously configured management bridge has been found on the system, this will try to de-configure it. Under certain circumstances you can loose network connection."
     vdsm-tool restore-nets
+    vdsm-tool clear-nets --exclude-net ovirtmgmt
 fi
 
 echo "  -=== Stop other services ===- "
@@ -107,6 +113,9 @@ systemctl stop sanlock
 
 echo "  -=== De-configure external daemons ===- "
 vdsm-tool remove-config
+
+echo "  -=== De-configure OVN ===- "
+vdsm-tool ovn-unconfigure
 
 echo "  -=== Removing configuration files ===- "
 FILES="/etc/init/libvirtd.conf"

@@ -25,9 +25,11 @@ VM cloud-init configuration plugin.
 
 import ethtool
 import gettext
+import io
 import netaddr
 import os
 import re
+import tarfile
 import tempfile
 
 from otopi import constants as otopicons
@@ -233,8 +235,8 @@ class Plugin(plugin.PluginBase):
                     name='CI_VM_STATIC_NETWORKING',
                     note=_(
                         'How should the engine VM network '
-                        'be configured '
-                        '(@VALUES@)[@DEFAULT@]? '
+                        'be configured? '
+                        '(@VALUES@)[@DEFAULT@]: '
                     ),
                     prompt=True,
                     validValues=(_('DHCP'), _('Static')),
@@ -442,6 +444,44 @@ class Plugin(plugin.PluginBase):
             ))
         return tz
 
+    def _get_fqdn_from_backup_file(self):
+        try:
+            with tarfile.open(
+                self.environment[
+                    ohostedcons.CoreEnv.RESTORE_FROM_FILE
+                ],
+                'r'
+            ) as tar:
+                buf = tar.extractfile('./files').read()
+                filesio = io.BytesIO(buf)
+                with tarfile.open(
+                    None,
+                    'r',
+                    fileobj=filesio
+                ) as files:
+                    conffiles_re = re.compile(
+                        '^etc/ovirt-engine/engine.conf.d/.*conf$'
+                    )
+                    fqdn_re = re.compile('^ENGINE_FQDN=(?P<fqdn>\\S*).*')
+                    for file in sorted(files, key=lambda f: f.name):
+                        if conffiles_re.search(file.name):
+                            f = files.extractfile(file.name)
+                            content = f.read().decode('utf-8')
+                            lines = content.splitlines()
+                            for l in lines:
+                                # This is only a partial parsing,
+                                # the full implementation is in
+                                # the engine pythonlib.
+                                match = fqdn_re.match(l)
+                                if match:
+                                    engine_fqdn = match.group('fqdn')
+        except Exception as e:
+            raise RuntimeError(
+                _('Unable to fech FQDN from backup file: {err}')
+                .format(err=str(e))
+            )
+        return engine_fqdn
+
     @plugin.event(
         stage=plugin.Stages.STAGE_BOOT,
         before=(
@@ -527,6 +567,10 @@ class Plugin(plugin.PluginBase):
         )
         self.environment.setdefault(
             ohostedcons.CloudInit.APPLY_OPENSCAP_PROFILE,
+            None
+        )
+        self.environment.setdefault(
+            ohostedcons.CloudInit.ENABLE_FIPS,
             None
         )
 
@@ -616,68 +660,85 @@ class Plugin(plugin.PluginBase):
             if not self.environment[
                 ohostedcons.CloudInit.INSTANCE_HOSTNAME
             ]:
-                instancehname = self._hostname_helper.getHostname(
-                    envkey=None,
-                    whichhost='CI_INSTANCE_HOSTNAME',
-                    supply_default=False,
-                    prompttext=_(
-                        'Please provide the FQDN you would like to use for '
-                        'the engine.\n'
-                        'Note: This will be the FQDN of the engine VM '
-                        'you are now going to launch,\nit should not '
-                        'point to the base host or to any other '
-                        'existing machine.\n'
-                        'Engine VM FQDN: '
-                    ),
-                    dialog_name='CI_INSTANCE_HOSTNAME',
-                    validate_syntax=True,
-                    system=True,
-                    dns=False,
-                    local_non_loopback=False,
-                    reverse_dns=False,
-                    not_local=True,
-                    not_local_text=_(
-                        'Please input the hostname for the engine VM, '
-                        'not for this host.'
-                    ),
-                    allow_empty=False,
-                )
-                if instancehname:
+                if self.environment[
+                    ohostedcons.CoreEnv.RESTORE_FROM_FILE
+                ]is not None:
                     self.environment[
                         ohostedcons.CloudInit.INSTANCE_HOSTNAME
-                    ] = instancehname
+                    ] = self._get_fqdn_from_backup_file()
+                    self.logger.info(_(
+                        'Using Engine VM FQDN {v} from backup file.').format(
+                        v=self.environment[
+                            ohostedcons.CloudInit.INSTANCE_HOSTNAME
+                            ]
+                        )
+                    )
+                    self.logger.info(_(
+                        'Using domain name from backup file.'
+                    ))
                 else:
-                    self.environment[
-                        ohostedcons.CloudInit.INSTANCE_HOSTNAME
-                    ] = False
+                    instancehname = self._hostname_helper.getHostname(
+                        envkey=None,
+                        whichhost='CI_INSTANCE_HOSTNAME',
+                        supply_default=False,
+                        prompttext=_(
+                            'Please provide the FQDN you would like to use '
+                            'for the engine.\n'
+                            'Note: This will be the FQDN of the engine VM '
+                            'you are now going to launch,\nit should not '
+                            'point to the base host or to any other '
+                            'existing machine.\n'
+                            'Engine VM FQDN: '
+                        ),
+                        dialog_name='CI_INSTANCE_HOSTNAME',
+                        validate_syntax=True,
+                        system=True,
+                        dns=False,
+                        local_non_loopback=False,
+                        reverse_dns=False,
+                        not_local=True,
+                        not_local_text=_(
+                            'Please input the hostname for the engine VM, '
+                            'not for this host.'
+                        ),
+                        allow_empty=False,
+                    )
+                    if instancehname:
+                        self.environment[
+                            ohostedcons.CloudInit.INSTANCE_HOSTNAME
+                        ] = instancehname
+                    else:
+                        self.environment[
+                            ohostedcons.CloudInit.INSTANCE_HOSTNAME
+                        ] = False
 
-            if (
-                self.environment[
-                    ohostedcons.CloudInit.INSTANCE_HOSTNAME
-                ] and
-                self.environment[
-                    ohostedcons.CloudInit.INSTANCE_DOMAINNAME
-                ] is None
-            ):
-                default_domain = ''
-                if '.' in self.environment[
-                    ohostedcons.CloudInit.INSTANCE_HOSTNAME
-                ]:
-                    default_domain = self.environment[
-                        ohostedcons.CloudInit.INSTANCE_HOSTNAME
-                    ].split('.', 1)[1]
-                self.environment[
-                    ohostedcons.CloudInit.INSTANCE_DOMAINNAME
-                ] = self.dialog.queryString(
-                    name='CI_INSTANCE_DOMAINNAME',
-                    note=_(
-                        'Please provide the domain name you would like to '
-                        'use for the engine appliance.\n'
-                        'Engine VM domain: [@DEFAULT@]'
-                    ),
-                    prompt=True,
-                    default=default_domain,
-                )
+                    if (
+                        self.environment[
+                            ohostedcons.CloudInit.INSTANCE_HOSTNAME
+                        ] and
+                        self.environment[
+                            ohostedcons.CloudInit.INSTANCE_DOMAINNAME
+                        ] is None
+                    ):
+                        default_domain = ''
+                        if '.' in self.environment[
+                            ohostedcons.CloudInit.INSTANCE_HOSTNAME
+                        ]:
+                            default_domain = self.environment[
+                                ohostedcons.CloudInit.INSTANCE_HOSTNAME
+                            ].split('.', 1)[1]
+                        self.environment[
+                            ohostedcons.CloudInit.INSTANCE_DOMAINNAME
+                        ] = self.dialog.queryString(
+                            name='CI_INSTANCE_DOMAINNAME',
+                            note=_(
+                                'Please provide the domain name you would like to '
+                                'use for the engine appliance.\n'
+                                'Engine VM domain [@DEFAULT@]: '
+                            ),
+                            prompt=True,
+                            default=default_domain,
+                        )
 
             if not self.environment[
                 ohostedcons.CloudInit.EXECUTE_ESETUP
@@ -789,9 +850,15 @@ class Plugin(plugin.PluginBase):
                 pubkey = self.dialog.queryString(
                     name='CI_ROOT_SSH_PUBKEY',
                     note=_(
-                        "Enter ssh public key for the root user that "
-                        'will be used for the engine appliance '
-                        '(leave it empty to skip): '
+                        "\nYou may provide an SSH public key, that will be "
+                        "added by the deployment script to the "
+                        "authorized_keys file of the root user in the engine "
+                        "appliance.\n"
+                        "This should allow you passwordless login to the "
+                        "engine machine after deployment.\n"
+                        "If you provide no key, authorized_keys will not be "
+                        "touched.\n"
+                        "SSH public key []: "
                     ),
                     prompt=True,
                     hidden=False,
@@ -841,7 +908,7 @@ class Plugin(plugin.PluginBase):
                 key=ohostedcons.CloudInit.ROOT_SSH_ACCESS,
                 name='CI_ROOT_SSH_ACCESS',
                 note=_(
-                    'Do you want to enable ssh access for the root user '
+                    'Do you want to enable ssh access for the root user? '
                     '(@VALUES@) [@DEFAULT@]: '
                 ),
                 prompt=True,
@@ -861,7 +928,26 @@ class Plugin(plugin.PluginBase):
                     name='CI_APPLY_OPENSCAP_PROFILE',
                     note=_(
                         'Do you want to apply a default OpenSCAP security '
-                        'profile (@VALUES@) [@DEFAULT@]: '
+                        'profile? (@VALUES@) [@DEFAULT@]: '
+                    ),
+                    prompt=True,
+                    validValues=(_('Yes'), _('No')),
+                    caseSensitive=False,
+                    default=_('No')
+                ) == _('Yes').lower()
+
+            if self.environment[
+                ohostedcons.CloudInit.ENABLE_FIPS
+            ] is None and self.environment[
+                ohostedcons.CloudInit.APPLY_OPENSCAP_PROFILE
+            ] is False:
+                self.environment[
+                    ohostedcons.CloudInit.ENABLE_FIPS
+                ] = self.dialog.queryString(
+                    name='CI_ENABLE_FIPS',
+                    note=_(
+                        'Do you want to enable FIPS? '
+                        '(@VALUES@) [@DEFAULT@]: '
                     ),
                     prompt=True,
                     validValues=(_('Yes'), _('No')),
@@ -911,16 +997,16 @@ class Plugin(plugin.PluginBase):
             ] = self.dialog.queryString(
                 name='CI_VM_ETC_HOST',
                 note=_(
-                    'Add lines for the appliance itself and for this host '
+                    '\nAdd lines for the appliance itself and for this host '
                     'to /etc/hosts on the engine VM?\n'
                     'Note: ensuring that this host could resolve the '
-                    'engine VM hostname is still up to you\n'
-                    '(@VALUES@)[@DEFAULT@] '
+                    'engine VM hostname is still up to you.\n'
+                    'Add lines to /etc/hosts? (@VALUES@)[@DEFAULT@]: '
                 ),
                 prompt=True,
                 validValues=(_('Yes'), _('No')),
                 caseSensitive=False,
-                default=_('No')
+                default=_('Yes')
             ) == _('Yes').lower()
 
 
