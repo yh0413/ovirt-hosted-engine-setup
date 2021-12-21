@@ -242,9 +242,7 @@ class Plugin(plugin.PluginBase):
         r = ah.run()
         self.logger.debug(r)
         try:
-            values = r[
-                'otopi_iscsi_targets'
-            ]['json']['discovered_targets']['iscsi_details']
+            values = r['otopi_iscsi_targets']['iscsi_targets_struct']
         except KeyError:
             raise RuntimeError(_('Unable to find any target'))
         self.logger.debug(values)
@@ -317,7 +315,7 @@ class Plugin(plugin.PluginBase):
             f_targets[int(s_target)-1]['target'],
             f_targets[int(s_target)-1]['tpgt'],
             ','.join([x['address'] for x in apl]),
-            ','.join([x['port'] for x in apl]),
+            ','.join([str(x['port']) for x in apl]),
         )
 
     def _query_iscsi_lunid(self, username, password, portal, port, target):
@@ -349,15 +347,29 @@ class Plugin(plugin.PluginBase):
         self.logger.debug(r)
         available_luns = []
         if (
-            'otopi_iscsi_devices' in r and
-            'ansible_facts' in r['otopi_iscsi_devices'] and
-            'ovirt_host_storages' in r['otopi_iscsi_devices']['ansible_facts']
+            'otopi_iscsi_devices' in r
         ):
-            available_luns = r[
-                'otopi_iscsi_devices'
-            ][
-                'ansible_facts'
-            ]['ovirt_host_storages']
+            if (
+                'ansible_facts' in r['otopi_iscsi_devices'] and
+                'ovirt_host_storages' in r[
+                    'otopi_iscsi_devices'
+                ][
+                    'ansible_facts'
+                ]
+            ):
+                available_luns = r[
+                    'otopi_iscsi_devices'
+                ][
+                    'ansible_facts'
+                ]['ovirt_host_storages']
+            elif (
+                'ovirt_host_storages' in r['otopi_iscsi_devices']
+            ):
+                available_luns = r[
+                    'otopi_iscsi_devices'
+                ][
+                    'ovirt_host_storages'
+                ]
         return self._select_lun(available_luns)
 
     def _query_fc_lunid(self):
@@ -384,18 +396,23 @@ class Plugin(plugin.PluginBase):
         self.logger.debug(r)
         available_luns = []
         if (
-            'otopi_fc_devices' in r and
-            'ansible_facts' in r['otopi_fc_devices'] and
-            'ovirt_host_storages' in r['otopi_fc_devices']['ansible_facts']
+            'otopi_fc_devices' in r
         ):
-            available_luns = r[
-                'otopi_fc_devices'
-            ][
-                'ansible_facts'
-            ]['ovirt_host_storages']
+            if (
+                'ansible_facts' in r['otopi_fc_devices'] and
+                'ovirt_host_storages' in r['otopi_fc_devices']['ansible_facts']
+            ):
+                available_luns = r['otopi_fc_devices'][
+                    'ansible_facts'
+                ]['ovirt_host_storages']
+            elif (
+                'ovirt_host_storages' in r['otopi_fc_devices']
+            ):
+                available_luns = r['otopi_fc_devices']['ovirt_host_storages']
         return self._select_lun(available_luns)
 
     def _select_lun(self, available_luns):
+        self.logger.debug(available_luns)
         if len(available_luns) == 0:
             msg = _('Cannot find any LUN on the selected target')
             self.logger.error(msg)
@@ -819,9 +836,26 @@ class Plugin(plugin.PluginBase):
             self.logger.debug(
                 'Create storage domain results {r}'.format(r=r)
             )
+            # We had very few reports [1] where 'Activate Storage Domain'
+            # finished successfully and returned to us
+            # 'otopi_storage_domain_details' that includes 'storagedomain',
+            # but not 'available'. According to Storage team, this can
+            # indeed happen and is not considered a bug.
+            # I failed to reproduce this, so just add this to the existing
+            # 'if' below.
+            # The user will then get a generic error and prompt to configure
+            # storage again. They'll likely have to manually remove and clean
+            # the storage domain and try again with same creds, after finding
+            # and fixing the root cause for a missing 'available'.
+            # It's not very helpful, but still better than failing the restore
+            # and having to start from scratch.
+            # [1] https://bugzilla.redhat.com/show_bug.cgi?id=1662657
             if (
                 'otopi_storage_domain_details' in r and
-                'storagedomain' in r['otopi_storage_domain_details']
+                'storagedomain' in r['otopi_storage_domain_details'] and
+                'available' in r[
+                    'otopi_storage_domain_details'
+                ]['storagedomain']
             ):
                 storage_domain = r[
                     'otopi_storage_domain_details'
@@ -931,6 +965,13 @@ class Plugin(plugin.PluginBase):
             else:
                 if not interactive:
                     raise RuntimeError('Failed creating storage domain')
+            if not created:
+                self.logger.error(
+                    _(
+                        'There was some problem with the storage domain, '
+                        'please try again'
+                    )
+                )
 
 
 # vim: expandtab tabstop=4 shiftwidth=4
