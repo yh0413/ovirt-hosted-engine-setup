@@ -30,11 +30,13 @@
 Summary:        oVirt Hosted Engine setup tool
 Name:           @PACKAGE_NAME@
 Version:        @PACKAGE_RPM_VERSION@
-Release:        @PACKAGE_RPM_RELEASE@%{?release_suffix}%{?dist}
+Release:        @PACKAGE_RPM_RELEASE@%{?release_suffix}.prolinux8
 License:        LGPLv2+
-URL:            http://www.ovirt.org
-Source:         http://resources.ovirt.org/pub/src/%{name}/%{name}-%{package_version}.tar.gz
-Group:          Applications/System
+URL:            https://github.com/tmax-cloud/ovirt-hosted-engine-setup
+Source:         https://github.com/tmax-cloud/ovirt-hosted-engine-setup/archive/%{name}-%{package_version}.tar.gz
+Packager:       Tmax A&C Co., Ltd. <https://technet.tmaxsoft.com/>
+Vendor:         Tmax A&C Co., Ltd.
+Group:          Tmax A&C Co., Ltd.
 
 BuildArch:      noarch
 
