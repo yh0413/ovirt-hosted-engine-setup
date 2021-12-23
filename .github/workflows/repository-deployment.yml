@@ -77,7 +77,7 @@ jobs:
             DOWNLOAD_DST=/var/www/html/supervm/${{ steps.vars.outputs.RELEASE }}-rc/prolinux/8/arch/x86_64/
           fi
           DOWNLOAD_SRC=http://172.21.7.2/github/ovirt-hosted-engine-setup/commits/${{ steps.vars.outputs.COMMIT }}/
-          if [ ${{ steps.vars.outputs.IS_MERGE }} ]; then
+          if [ ${{ steps.vars.outputs.IS_MERGE }} == 'true' ]; then
             PR_NUMBER=`git log --merges -n 1 | grep "Merge pull request" | sed -n "s/^.*Merge pull request #\\s*\\([0-9]*\\).*$/\\1/p"`
             DOWNLOAD_SRC=http://172.21.7.2/github/ovirt-hosted-engine-setup/pull-requests/${PR_NUMBER}/
           fi
