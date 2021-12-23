@@ -23,7 +23,7 @@ jobs:
           if [ `git rev-list --max-count=1 HEAD` == `git rev-list --merges --max-count=1 HEAD` ]; then
             IS_MERGE=true
           else
-            COMMIT=`git log --format="%H" -n 1`
+            FULL=`git log --format="%H" -n 1` && COMMIT="${FULL:0:8}"
             TEMPLATE_FILE=${WORK_DIR}/templates/ovirt-hosted-engine-setup-job.yaml.j2
             JOB_FILE=${WORK_DIR}/tmp/ovirt-hosted-engine-setup-job-${COMMIT}.yaml
             echo ::set-output name=COMMIT::${COMMIT}
