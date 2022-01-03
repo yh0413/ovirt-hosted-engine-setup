@@ -101,6 +101,9 @@ Requires:       ovirt-ansible-collection >= 1.5.4
 Conflicts:      ovirt-engine-appliance < 4.4
 Conflicts:      ovirt-engine-appliance >= 4.5
 
+# to resolve system.token permission problem [IMS #276299]
+Requires:       selinux-policy >= 3.14.3-80
+Requires:       selinux-policy-targeted >= 3.14.3-80   
 
 %description
 Hosted Engine setup tool for oVirt project.
