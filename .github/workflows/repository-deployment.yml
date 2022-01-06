@@ -12,6 +12,7 @@ jobs:
         run: |
           WORK_DIR=/home/github/ovirt-hosted-engine-setup
           TARGET_DIR=${WORK_DIR}/deployment-`date +%s`
+          rm -rf ${TARGET_DIR}
           git clone http://github.com/tmax-cloud/ovirt-hosted-engine-setup.git ${TARGET_DIR} && cd ${TARGET_DIR}
           BRANCH=$(echo $GITHUB_REF | awk 'BEGIN { FS = "/" } ; { print $3 }')
           if [ ${BRANCH} == 'supervm-releases' ]; then
@@ -31,7 +32,6 @@ jobs:
             echo ::set-output name=JOB_FILE::${JOB_FILE}
           fi
           echo "IS_MERGE: ${IS_MERGE}"
-          cd ${WORK_DIR} && rm -rf ${TARGET_DIR}
           echo ::set-output name=WORK_DIR::${WORK_DIR}
           echo ::set-output name=TARGET_DIR::${TARGET_DIR}
           echo ::set-output name=IS_MERGE::${IS_MERGE}
@@ -78,9 +78,15 @@ jobs:
           fi
           DOWNLOAD_SRC=http://172.21.7.2/github/ovirt-hosted-engine-setup/commits/${{ steps.vars.outputs.COMMIT }}/
           if [ ${{ steps.vars.outputs.IS_MERGE }} == 'true' ]; then
+            cd ${{ steps.vars.outputs.TARGET_DIR }}
             PR_NUMBER=`git log --merges -n 1 | grep "Merge pull request" | sed -n "s/^.*Merge pull request #\\s*\\([0-9]*\\).*$/\\1/p"`
             DOWNLOAD_SRC=http://172.21.7.2/github/ovirt-hosted-engine-setup/pull-requests/${PR_NUMBER}/
           fi
           ${RUN_CMD} mkdir -p ${DOWNLOAD_DST}/Packages
+          ${RUN_CMD} sh -c 'rm -f '${DOWNLOAD_DST}'/Packages/ovirt-hosted-engine-setup-*'
           ${RUN_CMD} wget -r -np -nd -A .rpm ${DOWNLOAD_SRC} -P ${DOWNLOAD_DST}/Packages
           ${RUN_CMD} createrepo ${DOWNLOAD_DST}
+      - name: Clean
+        if: always()
+        run: |
+          cd ${{ steps.vars.outputs.WORK_DIR }} && rm -rf ${{ steps.vars.outputs.TARGET_DIR }}
